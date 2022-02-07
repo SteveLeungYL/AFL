@@ -37,6 +37,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <iostream>
+#include <string>
 
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/IRBuilder.h"
@@ -74,6 +76,64 @@ bool AFLCoverage::runOnModule(Module &M) {
 
   LLVMContext &C = M.getContext();
 
+  std::string cur_file_name = M.getSourceFileName();
+
+  //std::cerr << "\n\n\nCurrent file name is: " << cur_file_name << "\n\n\n";
+
+//  if (cur_file_name.find("/sql_") == std::string::npos) {
+//	  return false;
+//  }
+
+//  /* Remove from blacklist */
+//  if (cur_file_name.find("binlog.cc") != std::string::npos) {
+//    return false;
+//  }
+//  if (cur_file_name.find("log_builtins.cc") != std::string::npos) {
+//    return false;
+//  }
+//  if (cur_file_name.find("storage/innobase/") != std::string::npos) {
+//    return false;
+//  }
+//  if (cur_file_name.find("storage/myisam") != std::string::npos) {
+//    return false;
+//  }
+//  if (cur_file_name.find("storage/perfschema") != std::string::npos) {
+//    return false;
+//  }
+//  if (cur_file_name.find("storage/perfschema") != std::string::npos) {
+//    return false;
+//  }
+//  if (cur_file_name.find("sql_plugin.cc") != std::string::npos) {
+//    return false;
+//  }
+//  if (cur_file_name.find("plugin/x/") != std::string::npos) {
+//    return false;
+//  }
+//  if (cur_file_name.find("sql/auth/") != std::string::npos) {
+//    return false;
+//  }
+//  if (cur_file_name.find("mysys/") != std::string::npos) {
+//    return false;
+//  }
+//  if (cur_file_name.find("sql/dd/impl/") != std::string::npos) {
+//    return false;
+//  }
+//  if (cur_file_name.find("/boost/") != std::string::npos) {
+//    return false;
+//  }
+//  if (cur_file_name.find("sql/rpl_") != std::string::npos) {
+//    return false;
+//  }
+//  if (cur_file_name.find("sql/srv_") != std::string::npos) {
+//    return false;
+//  }
+
+
+
+
+
+
+
   IntegerType *Int8Ty  = IntegerType::getInt8Ty(C);
   IntegerType *Int32Ty = IntegerType::getInt32Ty(C);
 
@@ -107,9 +167,9 @@ bool AFLCoverage::runOnModule(Module &M) {
       new GlobalVariable(M, PointerType::get(Int8Ty, 0), false,
                          GlobalValue::ExternalLinkage, 0, "__afl_area_ptr");
 
-  GlobalVariable *AFLPrevLoc = new GlobalVariable(
-      M, Int32Ty, false, GlobalValue::ExternalLinkage, 0, "__afl_prev_loc",
-      0, GlobalVariable::GeneralDynamicTLSModel, 0, false);
+  // GlobalVariable *AFLPrevLoc = new GlobalVariable(
+  //     M, Int32Ty, false, GlobalValue::ExternalLinkage, 0, "__afl_prev_loc",
+  //     0, GlobalVariable::GeneralDynamicTLSModel, 0, false);
 
   /* Instrument all the things! */
 
@@ -131,30 +191,32 @@ bool AFLCoverage::runOnModule(Module &M) {
 
       /* Load prev_loc */
 
-      LoadInst *PrevLoc = IRB.CreateLoad(AFLPrevLoc);
-      PrevLoc->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
-      Value *PrevLocCasted = IRB.CreateZExt(PrevLoc, IRB.getInt32Ty());
+      // LoadInst *PrevLoc = IRB.CreateLoad(AFLPrevLoc);
+      // PrevLoc->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
+      // Value *PrevLocCasted = IRB.CreateZExt(PrevLoc, IRB.getInt32Ty());
 
       /* Load SHM pointer */
 
       LoadInst *MapPtr = IRB.CreateLoad(AFLMapPtr);
       MapPtr->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
       Value *MapPtrIdx =
-          IRB.CreateGEP(MapPtr, IRB.CreateXor(PrevLocCasted, CurLoc));
+          IRB.CreateGEP(MapPtr, CurLoc);
+      // Value *MapPtrIdx = IRB.CreateZExt(CurLoc, IRB.getInt32Ty());
 
       /* Update bitmap */
 
       LoadInst *Counter = IRB.CreateLoad(MapPtrIdx);
       Counter->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
-      Value *Incr = IRB.CreateAdd(Counter, ConstantInt::get(Int8Ty, 1));
-      IRB.CreateStore(Incr, MapPtrIdx)
+      // Value *Incr = IRB.CreateAdd(Counter, ConstantInt::get(Int8Ty, 1));
+      ConstantInt *const_one = ConstantInt::get(Int8Ty, 1);
+      IRB.CreateStore(const_one, MapPtrIdx)
           ->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
 
       /* Set prev_loc to cur_loc >> 1 */
 
-      StoreInst *Store =
-          IRB.CreateStore(ConstantInt::get(Int32Ty, cur_loc >> 1), AFLPrevLoc);
-      Store->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
+      // StoreInst *Store =
+      //     IRB.CreateStore(ConstantInt::get(Int32Ty, cur_loc >> 1), AFLPrevLoc);
+      // Store->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
 
       inst_blocks++;
 
